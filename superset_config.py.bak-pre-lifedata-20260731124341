@@ -1,0 +1,99 @@
+import os
+
+SQLALCHEMY_DATABASE_URI = (
+    "postgresql+psycopg2://superset_app:Superset%40CTI2026"
+    "@db-staging4cti:5432/cti_geonode_data?options=-csearch_path%3Dsuperset"
+)
+
+SECRET_KEY = os.environ.get("SUPERSET_SECRET_KEY")
+
+# ── Brand & UI ──────────────────────────────────────────────
+# APP_NAME deliberately says "STAGING" (unlike prod's plain "LifeData") so
+# nobody mistakes this instance for the production dashboard when both are
+# open in adjacent tabs.
+APP_NAME = "LifeData (Staging)"
+APP_ICON = "/static/assets/images/lifedata_logo.png"
+APP_ICON_WIDTH = 126
+FAVICONS = [{"href": "/static/assets/images/lifedata_favicon.png"}]
+LOGO_TARGET_PATH = "/"
+LOGO_TOOLTIP = "LifeData STAGING — Spatial Health Intelligence for Africa (sandbox, not production)"
+
+# ── Feature Flags ───────────────────────────────────────────
+FEATURE_FLAGS = {
+    "ENABLE_TEMPLATE_PROCESSING": True,
+    "DASHBOARD_NATIVE_FILTERS": True,
+    "DASHBOARD_CROSS_FILTERS": True,
+    "DASHBOARD_RBAC": True,
+    "EMBEDDABLE_CHARTS": True,
+    "DRILL_BY": True,
+    "DRILL_TO_DETAIL": True,
+    "ENABLE_JAVASCRIPT_CONTROLS": True,
+}
+
+# ── HTML Sanitization ────────────────────────────────────────
+# Default schema (github hast-util-sanitize) strips <iframe> from Markdown
+# dashboard components. Extend it to allow iframe embeds (e.g. the
+# LifeConnect widget on the Buikwe HF dashboard) with only the attributes
+# actually needed, and restrict src to https so this can't be abused for
+# javascript:/data: URLs.
+HTML_SANITIZATION_SCHEMA_EXTENSIONS = {
+    "tagNames": ["iframe"],
+    "attributes": {
+        "iframe": ["src", "style", "title", "width", "height", "frameborder"],
+    },
+    "protocols": {
+        "src": ["https"],
+    },
+}
+
+# ── Chart Color Palette ─────────────────────────────────────
+EXTRA_CATEGORICAL_COLOR_SCHEMES = [
+    {
+        "id": "lifedata",
+        "description": "LifeData — CTI LifeHealth Brand Colors",
+        "label": "LifeData Brand",
+        "isDefault": True,
+        "colors": [
+            "#1E7B4D", "#E0312B", "#26A69A", "#F9A825",
+            "#1565C0", "#6D4C41", "#546E7A", "#AD1457",
+            "#558B2F", "#4527A0"
+        ],
+    }
+]
+
+# ── Global Theme (Ant Design tokens) ─────────────────────────
+# This Superset build has no "CUSTOM_CSS" hook — that key doesn't exist in
+# superset/config.py, so raw CSS injected under that name is silently
+# dropped. Site-wide chrome (nav, buttons, links, logo) is themed through
+# THEME_DEFAULT/THEME_DARK Ant Design tokens instead. THEME_DEFAULT must be
+# redefined here in full (not just APP_ICON/APP_NAME) because the base
+# config.py already bakes those into its own THEME_DEFAULT dict before this
+# file is loaded.
+#
+# colorPrimary is intentionally amber/orange here (not prod's green) as a
+# second, harder-to-miss visual cue that this is the staging instance.
+THEME_DEFAULT = {
+    "token": {
+        "brandAppName": APP_NAME,
+        "brandLogoAlt": "LifeData Staging",
+        "brandLogoUrl": APP_ICON,
+        "brandLogoHref": "/",
+        "brandLogoHeight": "24px",
+        "colorPrimary": "#B8860B",
+        "colorLink": "#B8860B",
+        "colorError": "#E0312B",
+        "colorWarning": "#F9A825",
+        "colorSuccess": "#558B2F",
+        "colorInfo": "#1565C0",
+        "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, sans-serif",
+        "fontUrls": [
+            "https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500&display=swap"
+        ],
+    },
+    "algorithm": "default",
+}
+
+THEME_DARK = {
+    **THEME_DEFAULT,
+    "algorithm": "dark",
+}

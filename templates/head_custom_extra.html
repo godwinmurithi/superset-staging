@@ -1,0 +1,181 @@
+{#
+  LifeHealth brand styling for the login/register screen, matched to what's
+  actually implemented in the forms engine (life-health-app/styles/auth.css
+  and variables.css) — not the marketing-site brand kit, which uses
+  different colors/fonts than the real app does. Scoped entirely under
+  [data-test="login-form"] / [data-test="register-form"], the two wrapper
+  divs React only mounts on /login/ and /register/, so none of this reaches
+  dashboards or any other Superset page.
+#}
+<style>
+  [data-test="login-form"],
+  [data-test="register-form"] {
+    font-family: Cambria, system-ui, serif;
+    background: radial-gradient(circle at 50% 0%, #fde7eb 0%, #f7f8fa 55%);
+    min-height: calc(100vh - 56px);
+    padding: 32px 16px;
+    /* login's wrapper carries antd's ant-flex-align-center class already;
+       register's doesn't, so its ant-flex container defaults to
+       align-items: stretch and the card balloons to fill the full
+       min-height instead of hugging its own content. */
+    align-items: center !important;
+  }
+
+  [data-test="login-form"] .ant-card,
+  [data-test="register-form"] .ant-card {
+    border-radius: 20px;
+    border: 1px solid #e6e8ef;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 40px rgba(15, 23, 42, 0.08);
+  }
+
+  [data-test="login-form"] .ant-card { width: 420px; }
+  [data-test="register-form"] .ant-card { width: 560px; }
+
+  [data-test="register-form"] .ant-form-item-label {
+    width: 195px;
+    white-space: nowrap;
+  }
+
+  [data-test="login-form"] .ant-card-head,
+  [data-test="register-form"] .ant-card-head {
+    border-bottom: none;
+    text-align: center;
+    padding-top: 8px;
+  }
+
+  [data-test="login-form"] .ant-card-head::before,
+  [data-test="register-form"] .ant-card-head::before {
+    content: url("/static/assets/images/lifedata_logo.png");
+    display: block;
+    width: 140px;
+    height: auto;
+    margin: 8px auto 4px;
+  }
+
+  [data-test="login-form"] .ant-card-head-title,
+  [data-test="register-form"] .ant-card-head-title {
+    font-family: Cambria, system-ui, serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: #0f172a;
+    padding: 4px 0 16px;
+    white-space: normal;
+  }
+
+  /* Upstream's default subtitle string ("Enter your login and password
+     below:") is baked into the JS bundle via Superset's i18n, not exposed
+     through any config — visually swap it via ::before/collapse instead of
+     forking the translation catalog. */
+  [data-test="login-form"] .ant-typography-secondary {
+    font-size: 0 !important;
+    line-height: 0 !important;
+  }
+
+  [data-test="login-form"] .ant-typography-secondary::before {
+    content: "Use your Username and Password to login";
+    display: block;
+    color: #475569;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+
+  /* Login: vertical layout with icon-prefixed inputs */
+  [data-test="login-form"] .ant-form-item-label label,
+  [data-test="login-form"] .ant-form-item-label .ant-typography {
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  [data-test="login-form"] .ant-input-affix-wrapper {
+    border-radius: 12px;
+    border-color: #dfe3ec;
+    min-height: 46px;
+    padding: 0 0.85rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  [data-test="login-form"] .ant-input-affix-wrapper-focused,
+  [data-test="login-form"] .ant-input-affix-wrapper:focus-within {
+    border-color: #ED1A3B !important;
+    box-shadow: 0 0 0 4px rgba(237, 26, 59, 0.12) !important;
+  }
+
+  [data-test="login-form"] .ant-input-prefix .anticon {
+    color: #94a3b8;
+  }
+
+  /* "Forgot password?" link, inserted next to the Password label by
+     tail_js_custom_extra.html since the login form is React-rendered and
+     has no such link built in. */
+  [data-test="login-form"] .lh-password-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+
+  [data-test="login-form"] .lh-forgot-password {
+    color: #ED1A3B;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  [data-test="login-form"] .lh-forgot-password:hover {
+    text-decoration: underline;
+  }
+
+  /* Register: horizontal-label layout, plain (non-affix) inputs */
+  [data-test="register-form"] .ant-form-item-label label {
+    color: #0f172a !important;
+    font-weight: 600;
+  }
+
+  [data-test="register-form"] input.ant-input {
+    border-radius: 12px;
+    border-color: #dfe3ec;
+    min-height: 46px;
+    padding: 0 0.85rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  [data-test="register-form"] input.ant-input:focus {
+    border-color: #ED1A3B !important;
+    box-shadow: 0 0 0 4px rgba(237, 26, 59, 0.12) !important;
+  }
+
+  /* Primary submit buttons: login's Sign In and register's Register button
+     are both rendered as plain ant-btn (not ant-btn-primary) filled solid
+     via the theme's colorPrimary — target by data-test, not class. */
+  [data-test="login-form"] button[data-test="login-button"],
+  [data-test="register-form"] button[data-test="register-button"] {
+    background: linear-gradient(135deg, #f43f5e 0%, #ED1A3B 100%) !important;
+    border: none !important;
+    border-radius: 12px;
+    height: 48px;
+    font-weight: 700;
+    box-shadow: 0 8px 20px rgba(237, 26, 59, 0.28);
+  }
+
+  [data-test="login-form"] button[data-test="login-button"]:hover,
+  [data-test="register-form"] button[data-test="register-button"]:hover {
+    background: linear-gradient(135deg, #fb7185 0%, #dc2640 100%) !important;
+    box-shadow: 0 10px 24px rgba(237, 26, 59, 0.34);
+  }
+
+  /* Secondary: login page's "Register" link button */
+  [data-test="login-form"] a[data-test="register-button"] {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #e6e8ef !important;
+    border-radius: 12px;
+    height: 48px;
+    font-weight: 700;
+  }
+
+  [data-test="login-form"] a[data-test="register-button"]:hover {
+    background: #f8fafc !important;
+    border-color: #d8dde7 !important;
+  }
+</style>

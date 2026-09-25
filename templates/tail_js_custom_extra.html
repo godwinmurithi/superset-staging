@@ -1,0 +1,33 @@
+{#
+  Adds a "Forgot password?" link next to the Password label on the login
+  screen, pointing at the admin-mediated reset request form (custom_views.py).
+  The login screen is React-rendered, so the link has to be inserted via JS
+  once the form actually mounts — a MutationObserver is the reliable way to
+  catch that without depending on Superset's internal render timing.
+#}
+<script nonce="{{ macros.get_nonce() }}">
+(function () {
+  if (window.location.pathname !== '/login/') return;
+
+  function enhanceLogin() {
+    var pwLabel = document.querySelector('[data-test="login-form"] label[for="password"]');
+    if (!pwLabel) return false;
+    var labelWrapper = pwLabel.closest('.ant-form-item-label');
+    if (!labelWrapper || labelWrapper.querySelector('.lh-forgot-password')) return false;
+    labelWrapper.classList.add('lh-password-label-row');
+    var link = document.createElement('a');
+    link.href = '/reset-password-request/form';
+    link.textContent = 'Forgot password?';
+    link.className = 'lh-forgot-password';
+    labelWrapper.appendChild(link);
+    return true;
+  }
+
+  if (enhanceLogin()) return;
+
+  var observer = new MutationObserver(function () {
+    if (enhanceLogin()) observer.disconnect();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+})();
+</script>

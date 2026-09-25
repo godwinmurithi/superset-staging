@@ -1,0 +1,61 @@
+services:
+  superset:
+    build: .
+    container_name: superset-staging4cti
+    restart: unless-stopped
+    environment:
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
+      - MCP_JWT_SECRET=${MCP_JWT_SECRET}
+    ports:
+      # Bound to localhost only, for direct debugging on the box.
+      # Public access is via nginx -> sandbox.lifehealth.app, not this port.
+      - "127.0.0.1:8089:8088"
+    networks:
+      # Reached by nginx4cti_geonode to route sandbox.lifehealth.app here.
+      - cti_geonode_default
+      # Reaches db-staging4cti (the isolated staging Postgres) by container name.
+      - db-staging_default
+    volumes:
+      - superset_staging_home:/app/superset_home
+      - ./superset_config.py:/app/pythonpath/superset_config.py
+      - ./custom_sm.py:/app/pythonpath/custom_sm.py
+      - ./custom_views.py:/app/pythonpath/custom_views.py
+      - ./mcp_auth_bridge.py:/app/pythonpath/mcp_auth_bridge.py
+      - ./templates/tail_js_custom_extra.html:/app/superset/templates/tail_js_custom_extra.html
+      - ./assets:/app/superset/static/assets/images
+      - ./templates/head_custom_extra.html:/app/superset/templates/head_custom_extra.html
+
+  superset-mcp:
+    # Same image as `superset` (built above), running the MCP service
+    # instead of the web server. Native Superset 6.1.0 capability
+    # (superset/mcp_service/), gated behind the fastmcp extra installed in
+    # the Dockerfile -- not a fork of Superset core.
+    build: .
+    container_name: superset-staging-mcp4cti
+    restart: unless-stopped
+    command: ["superset", "mcp", "run", "--host", "0.0.0.0", "--port", "5008"]
+    environment:
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
+      - MCP_JWT_SECRET=${MCP_JWT_SECRET}
+    networks:
+      # Reached only by lifedata-ai4cti (by container name), not by nginx.
+      # No `ports:` -- never expose 5008 on the host or publicly.
+      - cti_geonode_default
+      - db-staging_default
+    volumes:
+      - superset_staging_home:/app/superset_home
+      - ./superset_config.py:/app/pythonpath/superset_config.py
+      - ./custom_sm.py:/app/pythonpath/custom_sm.py
+      - ./custom_views.py:/app/pythonpath/custom_views.py
+      - ./mcp_auth_bridge.py:/app/pythonpath/mcp_auth_bridge.py
+
+networks:
+  cti_geonode_default:
+    external: true
+  db-staging_default:
+    external: true
+
+volumes:
+  superset_staging_home:
