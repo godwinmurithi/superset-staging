@@ -284,11 +284,21 @@ FEATURE_FLAGS["PLAYWRIGHT_REPORTS_AND_THUMBNAILS"] = True
 # inside this same container's network namespace, so localhost is correct.
 WEBDRIVER_BASEURL = "http://localhost:8088/"
 WEBDRIVER_BASEURL_USER_FRIENDLY = "https://sandbox.lifehealth.app/"
-# GLOBAL_ASYNC_QUERIES belongs to Phase 17 (real-time), not this phase --
-# added here prematurely, crashed the web worker (needs its own
-# GLOBAL_ASYNC_QUERIES_JWT_SECRET, >=32 bytes, which wasn't provisioned).
-# Backed out; will be added properly, with a real secret, when Phase 17 is
-# actually being built.
+# Phase 17: added properly this time, with the secret that was missing
+# before (crashed the web worker in Phase 5 -- see git history). Also needs
+# its own Redis cache backend config: the default
+# (GLOBAL_ASYNC_QUERIES_CACHE_BACKEND) points at "localhost", which isn't
+# this deployment's dedicated Redis container -- checked superset/config.py
+# rather than assuming the general CACHE_CONFIG above covers this one too.
+FEATURE_FLAGS["GLOBAL_ASYNC_QUERIES"] = True
+GLOBAL_ASYNC_QUERIES_JWT_SECRET = os.environ["GLOBAL_ASYNC_QUERIES_JWT_SECRET"]
+GLOBAL_ASYNC_QUERIES_CACHE_BACKEND = {
+    "CACHE_TYPE": "RedisCache",
+    "CACHE_REDIS_HOST": REDIS_HOST,
+    "CACHE_REDIS_PORT": REDIS_PORT,
+    "CACHE_REDIS_DB": REDIS_CELERY_DB,
+    "CACHE_DEFAULT_TIMEOUT": 300,
+}
 
 # Real config key is THUMBNAIL_EXECUTORS (plural, list of ExecutorType/
 # FixedExecutor) -- THUMBNAIL_SELENIUM_USER/THUMBNAIL_EXECUTE_AS above were
