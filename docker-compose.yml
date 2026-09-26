@@ -1,8 +1,28 @@
 services:
+  redis:
+    # Dedicated to this project, not the shared native host Redis -- that one
+    # requires a password (`requirepass`) not available without host sudo
+    # (see AI_NATIVE_STATUS.md), and a dedicated instance is cleaner isolation
+    # anyway (no DB-number collision risk with other projects on the host).
+    image: redis:7-alpine
+    container_name: superset-staging-redis4cti
+    restart: unless-stopped
+    networks:
+      - db-staging_default
+    volumes:
+      - superset_staging_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   superset:
     build: .
     container_name: superset-staging4cti
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
@@ -34,14 +54,94 @@ services:
     build: .
     container_name: superset-staging-mcp4cti
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: ["superset", "mcp", "run", "--host", "0.0.0.0", "--port", "5008"]
     environment:
       - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
       - MCP_JWT_SECRET=${MCP_JWT_SECRET}
+    healthcheck:
+      # Overrides the base image's inherited check (curl localhost:8088),
+      # which this service never listens on -- it serves MCP on 5008
+      # instead of the web server. Any HTTP response (even 405 on GET,
+      # since the endpoint only accepts POST) proves the server is up.
+      test: ["CMD-SHELL", "[ \"$(curl -s -o /dev/null -w '%{http_code}' http://localhost:5008/mcp)\" != \"000\" ]"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks:
       # Reached only by lifedata-ai4cti (by container name), not by nginx.
       # No `ports:` -- never expose 5008 on the host or publicly.
+      - cti_geonode_default
+      - db-staging_default
+    volumes:
+      - superset_staging_home:/app/superset_home
+      - ./superset_config.py:/app/pythonpath/superset_config.py
+      - ./custom_sm.py:/app/pythonpath/custom_sm.py
+      - ./custom_views.py:/app/pythonpath/custom_views.py
+      - ./mcp_auth_bridge.py:/app/pythonpath/mcp_auth_bridge.py
+
+  superset-worker:
+    # Celery worker (Phase 5: thumbnails/screenshots, Phase 17: async
+    # queries/alerts). Same image, same config, extra_hosts for
+    # host.docker.internal since this compose network doesn't get it for
+    # free the way Docker Desktop does on non-Linux hosts.
+    build: .
+    container_name: superset-staging-worker4cti
+    restart: unless-stopped
+    command: ["celery", "--app=superset.tasks.celery_app:app", "worker", "--pool=prefork", "-O", "fair", "-c", "2"]
+    environment:
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
+      - MCP_JWT_SECRET=${MCP_JWT_SECRET}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # Same inherited-healthcheck issue as superset-mcp (base image checks
+      # :8088, which a worker never listens on). `celery inspect ping` was
+      # tried first but spins up a whole new Superset app context per check
+      # (config load, alembic checks, MCP tool registration) -- consistently
+      # exceeded even a 15s timeout, unrelated to whether the worker is
+      # actually healthy. Lightweight process check instead, same pattern as
+      # beat's.
+      test: ["CMD-SHELL", "grep -q worker /proc/1/cmdline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - cti_geonode_default
+      - db-staging_default
+    volumes:
+      - superset_staging_home:/app/superset_home
+      - ./superset_config.py:/app/pythonpath/superset_config.py
+      - ./custom_sm.py:/app/pythonpath/custom_sm.py
+      - ./custom_views.py:/app/pythonpath/custom_views.py
+      - ./mcp_auth_bridge.py:/app/pythonpath/mcp_auth_bridge.py
+
+  superset-beat:
+    build: .
+    container_name: superset-staging-beat4cti
+    restart: unless-stopped
+    command: ["celery", "--app=superset.tasks.celery_app:app", "beat", "--schedule=/app/superset_home/celerybeat-schedule"]
+    environment:
+      - SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+      - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
+      - MCP_JWT_SECRET=${MCP_JWT_SECRET}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # beat doesn't respond to `celery inspect` (it's a scheduler, not a
+      # worker) -- check the process itself is running instead.
+      # No procps in this image (no pgrep/ps) -- check PID 1's own cmdline
+      # instead, which needs no extra binary.
+      test: ["CMD-SHELL", "grep -q beat /proc/1/cmdline"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
       - cti_geonode_default
       - db-staging_default
     volumes:
@@ -59,3 +159,4 @@ networks:
 
 volumes:
   superset_staging_home:
+  superset_staging_redis:

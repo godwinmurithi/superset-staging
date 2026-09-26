@@ -217,3 +217,91 @@ from mcp_auth_bridge import create_mcp_auth_provider  # noqa: E402
 
 MCP_AUTH_FACTORY = create_mcp_auth_provider
 
+# ── Celery / Redis / thumbnails (Phase 5) ────────────────────────────────
+# Dedicated Redis container for this project (docker-compose.yml's `redis`
+# service), not the shared native host Redis -- that one requires a
+# password not retrievable without host sudo. A dedicated instance also
+# means no DB-number collision risk with other projects on the host.
+REDIS_HOST = "superset-staging-redis4cti"
+REDIS_PORT = 6379
+REDIS_CELERY_DB = 0
+REDIS_RESULTS_DB = 1
+
+
+class CeleryConfig:
+    broker_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CELERY_DB}"
+    result_backend = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_RESULTS_DB}"
+    worker_prefetch_multiplier = 1
+    task_acks_late = True
+    task_annotations = {
+        "sql_lab.get_sql_results": {"rate_limit": "100/s"},
+    }
+    beat_schedule = {}
+
+
+CELERY_CONFIG = CeleryConfig
+
+CACHE_CONFIG = {
+    "CACHE_TYPE": "RedisCache",
+    "CACHE_DEFAULT_TIMEOUT": 300,
+    "CACHE_KEY_PREFIX": "superset_staging_",
+    "CACHE_REDIS_HOST": REDIS_HOST,
+    "CACHE_REDIS_PORT": REDIS_PORT,
+    "CACHE_REDIS_DB": REDIS_CELERY_DB,
+}
+
+# Default is THUMBNAIL_CACHE_CONFIG = {"CACHE_TYPE": "NullCache", ...} --
+# every screenshot render was actually succeeding (confirmed: playwright
+# launches, navigates, captures) but silently discarded instead of cached,
+# defeating the entire point. Found by checking Redis directly after a
+# successful-looking "Updated thumbnail cache; Status: Updated" log line and
+# finding no key -- NullCache logs the same success message either way.
+THUMBNAIL_CACHE_CONFIG = {
+    "CACHE_TYPE": "RedisCache",
+    "CACHE_DEFAULT_TIMEOUT": 60 * 60 * 24 * 7,
+    "CACHE_KEY_PREFIX": "superset_staging_thumbnails_",
+    "CACHE_REDIS_HOST": REDIS_HOST,
+    "CACHE_REDIS_PORT": REDIS_PORT,
+    "CACHE_REDIS_DB": REDIS_CELERY_DB,
+}
+
+FEATURE_FLAGS["THUMBNAILS"] = True
+FEATURE_FLAGS["THUMBNAILS_SQLA_LISTENERS"] = True
+# Without this, screenshots.py's driver-selection falls back to the legacy
+# Selenium/Firefox path regardless of playwright being installed -- confirmed
+# by hitting exactly that fallback (NoSuchDriverException for firefox) before
+# this flag was added. superset/utils/webdriver.py always uses
+# playwright.chromium specifically (see Dockerfile), never firefox, once this
+# routes to WebDriverPlaywright.
+FEATURE_FLAGS["PLAYWRIGHT_REPORTS_AND_THUMBNAILS"] = True
+# The base image's WEBDRIVER_BASEURL default (http://0.0.0.0:8080/) is wrong
+# for this deployment on two counts: 0.0.0.0 is a bind address, not reliably
+# a dialable target, and gunicorn actually listens on 8088 here, not 8080
+# (see docker-compose.yml's port mapping). This is what a hung
+# `compute-thumbnails` run traced back to -- the headless browser had
+# nothing to connect to and sat retrying until the timeout budget ran out.
+# `compute-thumbnails` and the celery worker both run the actual screenshot
+# inside this same container's network namespace, so localhost is correct.
+WEBDRIVER_BASEURL = "http://localhost:8088/"
+WEBDRIVER_BASEURL_USER_FRIENDLY = "https://sandbox.lifehealth.app/"
+# GLOBAL_ASYNC_QUERIES belongs to Phase 17 (real-time), not this phase --
+# added here prematurely, crashed the web worker (needs its own
+# GLOBAL_ASYNC_QUERIES_JWT_SECRET, >=32 bytes, which wasn't provisioned).
+# Backed out; will be added properly, with a real secret, when Phase 17 is
+# actually being built.
+
+# Real config key is THUMBNAIL_EXECUTORS (plural, list of ExecutorType/
+# FixedExecutor) -- THUMBNAIL_SELENIUM_USER/THUMBNAIL_EXECUTE_AS above were
+# wrong names, guessed instead of checked against superset/config.py, and
+# failed with ExecutorNotFoundError under `superset compute-thumbnails`
+# (no logged-in user in a CLI/background context, so CURRENT_USER, the
+# default, has nothing to resolve). FixedExecutor("admin") so
+# background/scheduled thumbnail generation always has an executor,
+# matching the "full access" scope already granted elsewhere in this
+# deployment (see AI_NATIVE_STATUS.md).
+from superset.tasks.types import ExecutorType, FixedExecutor  # noqa: E402
+
+THUMBNAIL_EXECUTORS = [ExecutorType.CURRENT_USER, FixedExecutor("admin")]
+SCREENSHOT_LOCATE_WAIT = 30
+SCREENSHOT_LOAD_WAIT = 60
+
