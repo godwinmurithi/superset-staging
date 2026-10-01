@@ -28,6 +28,7 @@ services:
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
       - MCP_JWT_SECRET=${MCP_JWT_SECRET}
       - GLOBAL_ASYNC_QUERIES_JWT_SECRET=${GLOBAL_ASYNC_QUERIES_JWT_SECRET}
+      - GUEST_TOKEN_JWT_SECRET=${GUEST_TOKEN_JWT_SECRET}
     ports:
       # Bound to localhost only, for direct debugging on the box.
       # Public access is via nginx -> sandbox.lifehealth.app, not this port.
@@ -63,6 +64,7 @@ services:
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
       - MCP_JWT_SECRET=${MCP_JWT_SECRET}
       - GLOBAL_ASYNC_QUERIES_JWT_SECRET=${GLOBAL_ASYNC_QUERIES_JWT_SECRET}
+      - GUEST_TOKEN_JWT_SECRET=${GUEST_TOKEN_JWT_SECRET}
     healthcheck:
       # Overrides the base image's inherited check (curl localhost:8088),
       # which this service never listens on -- it serves MCP on 5008
@@ -98,6 +100,7 @@ services:
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
       - MCP_JWT_SECRET=${MCP_JWT_SECRET}
       - GLOBAL_ASYNC_QUERIES_JWT_SECRET=${GLOBAL_ASYNC_QUERIES_JWT_SECRET}
+      - GUEST_TOKEN_JWT_SECRET=${GUEST_TOKEN_JWT_SECRET}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
@@ -133,6 +136,7 @@ services:
       - SUPERSET_CONFIG_PATH=/app/pythonpath/superset_config.py
       - MCP_JWT_SECRET=${MCP_JWT_SECRET}
       - GLOBAL_ASYNC_QUERIES_JWT_SECRET=${GLOBAL_ASYNC_QUERIES_JWT_SECRET}
+      - GUEST_TOKEN_JWT_SECRET=${GUEST_TOKEN_JWT_SECRET}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

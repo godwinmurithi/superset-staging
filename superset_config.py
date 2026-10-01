@@ -62,6 +62,14 @@ FEATURE_FLAGS = {
     "DRILL_BY": True,
     "DRILL_TO_DETAIL": True,
     "ENABLE_JAVASCRIPT_CONTROLS": True,
+    # Phase 12: embedded per-tenant dashboards. Superset's own native
+    # mechanism (superset/embedded_dashboard/, superset/security/guest_token.py)
+    # -- not a new capability built here, just switched on with a real secret.
+    # The `rls` field on a guest-token request is what actually delivers
+    # per-tenant scoping: a district-scoped clause travels IN the token
+    # itself, so one embeddable dashboard serves every tenant with no
+    # per-tenant Superset user account needed.
+    "EMBEDDED_SUPERSET": True,
 }
 
 # ── HTML Sanitization ────────────────────────────────────────
@@ -290,7 +298,30 @@ WEBDRIVER_BASEURL_USER_FRIENDLY = "https://sandbox.lifehealth.app/"
 # (GLOBAL_ASYNC_QUERIES_CACHE_BACKEND) points at "localhost", which isn't
 # this deployment's dedicated Redis container -- checked superset/config.py
 # rather than assuming the general CACHE_CONFIG above covers this one too.
-FEATURE_FLAGS["GLOBAL_ASYNC_QUERIES"] = True
+# Disabled 2026-10-01: with this on, every browser/admin dashboard chart
+# load 404s with "Error loading data from cache" -- the async job computes
+# and stores its result under one cache key, but the GET /api/v1/chart/data/
+# <cache_key> result_url recomputes a *different* key from the request and
+# never finds it (confirmed via direct Redis inspection: the worker's key is
+# genuinely there, the lookup just never matches it). Only the dedicated
+# @superset-ui/embedded-sdk guest-token flow (with its own async-queries
+# WebSocket subscription) was ever confirmed to handle this correctly -- see
+# the Phase 12 note below, which already flagged real browser/admin usage as
+# unstarted, unverified follow-up work. Affected every dashboard on this
+# instance, not a specific one.
+FEATURE_FLAGS["GLOBAL_ASYNC_QUERIES"] = False
+# NOTE (Phase 12): with this on, EVERY JSON/full chart-data request goes
+# through the async job-submission path (charts/data/api.py's `use_async`
+# check), including guest/embedded sessions -- confirmed directly: a guest
+# token against this same dashboard/chart got a 401 here until the flag was
+# temporarily disabled for verification. A real browser using
+# @superset-ui/embedded-sdk establishes its own async-queries WebSocket
+# subscription (using the guest token for that connection too) and would
+# handle this transparently; this project's verification used a bare HTTP
+# client, which does not replicate that subscription, so the synchronous
+# path (flag off) was used to prove the actual thing Phase 12 needs to prove
+# -- guest-token RLS scoping. Combining GLOBAL_ASYNC_QUERIES with a genuine
+# embedded frontend integration is real, unstarted follow-up work.
 GLOBAL_ASYNC_QUERIES_JWT_SECRET = os.environ["GLOBAL_ASYNC_QUERIES_JWT_SECRET"]
 GLOBAL_ASYNC_QUERIES_CACHE_BACKEND = {
     "CACHE_TYPE": "RedisCache",
@@ -314,4 +345,26 @@ from superset.tasks.types import ExecutorType, FixedExecutor  # noqa: E402
 THUMBNAIL_EXECUTORS = [ExecutorType.CURRENT_USER, FixedExecutor("admin")]
 SCREENSHOT_LOCATE_WAIT = 30
 SCREENSHOT_LOAD_WAIT = 60
+
+# ── Embedded per-tenant dashboards (Phase 12) ────────────────────────────
+# Default GUEST_TOKEN_JWT_SECRET upstream is the literal string
+# "test-guest-secret-change-me" -- would let anyone forge a guest token
+# offline. Real secret, same env-var pattern as MCP_JWT_SECRET /
+# GLOBAL_ASYNC_QUERIES_JWT_SECRET above.
+GUEST_TOKEN_JWT_SECRET = os.environ["GUEST_TOKEN_JWT_SECRET"]
+GUEST_TOKEN_JWT_EXP_SECONDS = 300
+# Deliberately a dedicated "Guest" role, NOT the default "Public" -- this
+# deployment's "Public" role is intentionally stripped to zero permissions
+# (see the self-registration comment near the top of this file: any
+# self-registered account starts as Public specifically so a slipped-through
+# signup can do nothing). Reusing Public here would either grant guest
+# embed sessions real permissions (undermining that control) or leave guest
+# tokens permanently 403'd (found this the hard way -- the base FAB
+# `can_read on Chart`/`can_read on Dashboard` API permission is checked
+# BEFORE Superset's own per-object RLS/dashboard-scoping logic ever runs,
+# and Public has neither). "Guest" carries exactly those two read
+# permissions and nothing else -- object-level scoping (which dashboard,
+# which rows) still comes entirely from the guest token's own `resources`/
+# `rls` claims, checked separately, per request.
+GUEST_ROLE_NAME = "Guest"
 
